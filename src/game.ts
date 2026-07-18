@@ -167,7 +167,6 @@ export class Game {
 
   private buildTerrain() {
     const groundMat = new THREE.MeshLambertMaterial({ color: 0x3d6b3a })
-    const rockMat = new THREE.MeshLambertMaterial({ color: 0x6a5a48 })
     const waterMat = new THREE.MeshLambertMaterial({ color: 0x2a6a8a })
     const metalMat = new THREE.MeshLambertMaterial({ color: 0x4a5568 })
 
@@ -176,14 +175,6 @@ export class Game {
       strip.position.set(0, -3.2, z)
       this.world.add(strip)
 
-      if (Math.random() > 0.4) {
-        const rock = new THREE.Mesh(
-          new THREE.ConeGeometry(1 + Math.random(), 2 + Math.random() * 3.5, 5),
-          rockMat,
-        )
-        rock.position.set((Math.random() - 0.5) * 30, -1.4, z + (Math.random() - 0.5) * 3)
-        this.world.add(rock)
-      }
       if (Math.random() > 0.75) {
         const pool = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 0.35, 6), waterMat)
         pool.position.set((Math.random() - 0.5) * 18, -2.75, z)
@@ -240,38 +231,38 @@ export class Game {
 
   private seedCourse() {
     for (let z = -20; z > -this.missionLength + 25; z -= 14) {
-      // Rings
       if (Math.random() > 0.3) {
         const ring = createRing()
-        ring.position.set((Math.random() - 0.5) * 8, 0.2 + Math.random() * 2.8, z)
+        ring.position.set((Math.random() - 0.5) * 6, 0.4 + Math.random() * 2.4, z)
         this.world.add(ring)
         this.rings.push({ mesh: ring, taken: false })
       }
 
-      // Enemies
       const roll = Math.random()
-      if (roll < 0.5) {
+      if (roll < 0.55) {
         const mesh = createEnemyFighter()
-        const x = (Math.random() - 0.5) * 10
-        mesh.position.set(x, 0.5 + Math.random() * 2.5, z - 4)
+        // Keep fighters in the shootable flight lane
+        const x = (Math.random() - 0.5) * 7
+        mesh.position.set(x, 0.8 + Math.random() * 2.2, z - 4)
         this.world.add(mesh)
         this.enemies.push({
           mesh,
           kind: 'fighter',
-          hp: 2,
+          hp: 1,
           t: Math.random() * Math.PI * 2,
           fireCd: 0.8 + Math.random(),
           baseX: x,
         })
-      } else if (roll < 0.8) {
+      } else if (roll < 0.85) {
         const mesh = createTurret()
         const side = Math.random() > 0.5 ? 1 : -1
-        mesh.position.set(side * (9 + Math.random() * 3), -1.55, z - 2)
+        // Pull turrets inward so lasers can reach them
+        mesh.position.set(side * (5.5 + Math.random() * 2), -1.2, z - 2)
         this.world.add(mesh)
         this.enemies.push({
           mesh,
           kind: 'turret',
-          hp: 3,
+          hp: 2,
           t: 0,
           fireCd: 1.2,
           baseX: mesh.position.x,
@@ -279,13 +270,12 @@ export class Game {
       }
     }
 
-    // Mini "boss gate" near the end
-    for (const x of [-4, 0, 4]) {
+    for (const x of [-3.5, 0, 3.5]) {
       const mesh = createEnemyFighter()
       mesh.scale.setScalar(1.35)
       mesh.position.set(x, 1.5, -this.missionLength + 35)
       this.world.add(mesh)
-      this.enemies.push({ mesh, kind: 'fighter', hp: 5, t: x, fireCd: 0.6, baseX: x })
+      this.enemies.push({ mesh, kind: 'fighter', hp: 3, t: x, fireCd: 0.6, baseX: x })
     }
   }
 
@@ -379,18 +369,20 @@ export class Game {
   }
 
   private firePlayer() {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.1, 0.7),
-      new THREE.MeshBasicMaterial({ color: 0x7cffb2 }),
-    )
-    mesh.position.set(this.shipX, this.shipY, -1.3)
-    this.scene.add(mesh)
-    this.bullets.push({
-      mesh,
-      vel: new THREE.Vector3(0, 0, -75),
-      life: 1.1,
-      fromPlayer: true,
-    })
+    for (const xOff of [-0.35, 0.35]) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.14, 1.1),
+        new THREE.MeshBasicMaterial({ color: 0x9dffc2 }),
+      )
+      mesh.position.set(this.shipX + xOff, this.shipY, -1.4)
+      this.scene.add(mesh)
+      this.bullets.push({
+        mesh,
+        vel: new THREE.Vector3(0, 0, -95),
+        life: 1.35,
+        fromPlayer: true,
+      })
+    }
     this.sfx.shoot()
   }
 
@@ -403,9 +395,55 @@ export class Game {
     mesh.position.copy(origin)
     this.scene.add(mesh)
     const toPlayer = new THREE.Vector3(this.shipX - origin.x, this.shipY - origin.y, 0 - origin.z)
-      .normalize()
-      .multiplyScalar(34)
+    if (toPlayer.lengthSq() < 0.001) toPlayer.set(0, 0, 1)
+    toPlayer.normalize().multiplyScalar(34)
     this.bullets.push({ mesh, vel: toPlayer, life: 2.4, fromPlayer: false })
+  }
+
+  private explodeAt(scenePos: THREE.Vector3, color = 0xffb347) {
+    const burst = new THREE.Group()
+    burst.position.copy(scenePos)
+    this.scene.add(burst)
+
+    for (let i = 0; i < 14; i++) {
+      const chunk = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.18, 0.18),
+        new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? color : 0xffee88 }),
+      )
+      burst.add(chunk)
+      const dir = new THREE.Vector3(
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+      ).normalize()
+      const speed = 6 + Math.random() * 10
+      const start = performance.now()
+      const tick = () => {
+        const t = (performance.now() - start) / 1000
+        if (t > 0.45) {
+          this.scene.remove(burst)
+          return
+        }
+        chunk.position.addScaledVector(dir, speed * 0.016)
+        chunk.scale.multiplyScalar(0.94)
+        requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    }
+
+    this.flash = 0.08
+    this.sfx.boom()
+  }
+
+  private destroyEnemy(index: number) {
+    const e = this.enemies[index]
+    if (!e) return
+    const pos = this.worldToScene(e.mesh.position)
+    this.world.remove(e.mesh)
+    this.enemies.splice(index, 1)
+    this.combo += 1
+    this.score += 250 + this.combo * 40
+    this.explodeAt(pos, e.kind === 'turret' ? 0xff7744 : 0xffb347)
   }
 
   private updateEnemies(dt: number) {
@@ -413,23 +451,23 @@ export class Game {
     for (const e of this.enemies) {
       e.t += dt
       if (e.kind === 'fighter') {
-        e.mesh.position.x = e.baseX + Math.sin(e.t * 2.4) * 1.8
-        e.mesh.rotation.z = Math.sin(e.t * 2) * 0.35
+        e.mesh.position.x = e.baseX + Math.sin(e.t * 1.6) * 0.9
+        e.mesh.rotation.z = Math.sin(e.t * 1.6) * 0.2
         e.mesh.rotation.y = Math.PI
       }
 
       const scenePos = this.worldToScene(e.mesh.position)
       e.fireCd -= dt
-      if (e.fireCd <= 0 && scenePos.z < 20 && scenePos.z > -40) {
+      if (e.fireCd <= 0 && scenePos.z < 18 && scenePos.z > -45) {
         this.fireEnemy(e)
         e.fireCd = e.kind === 'turret' ? 1.55 : 1.9
       }
 
       const dist = scenePos.distanceTo(new THREE.Vector3(this.shipX, this.shipY, 0))
-      if (dist < 1.25) {
+      if (dist < 1.35) {
         this.damagePlayer()
+        this.explodeAt(scenePos, 0xff5566)
         this.world.remove(e.mesh)
-        this.sfx.boom()
         continue
       }
 
@@ -444,40 +482,54 @@ export class Game {
 
   private updateBullets(dt: number) {
     const keep: Bullet[] = []
+    const tmp = new THREE.Vector3()
+
     for (const b of this.bullets) {
+      const prevZ = b.mesh.position.z
+      const prevX = b.mesh.position.x
+      const prevY = b.mesh.position.y
       b.mesh.position.addScaledVector(b.vel, dt)
       b.life -= dt
+
+      let consumed = false
 
       if (b.fromPlayer) {
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i]
-          const ep = this.worldToScene(e.mesh.position)
-          if (b.mesh.position.distanceTo(ep) < 1.2) {
+          const ep = this.worldToScene(e.mesh.position, tmp)
+          const z0 = Math.min(prevZ, b.mesh.position.z) - 0.8
+          const z1 = Math.max(prevZ, b.mesh.position.z) + 0.8
+          if (ep.z < z0 || ep.z > z1) continue
+
+          const span = b.mesh.position.z - prevZ
+          const t = Math.abs(span) < 1e-4 ? 1 : (ep.z - prevZ) / span
+          const lx = prevX + (b.mesh.position.x - prevX) * t
+          const ly = prevY + (b.mesh.position.y - prevY) * t
+          const xy = Math.hypot(lx - ep.x, ly - ep.y)
+          const hitR = e.kind === 'turret' ? 2.1 : 1.85
+
+          if (xy <= hitR) {
             e.hp -= 1
             this.scene.remove(b.mesh)
             this.sfx.hit()
-            b.life = 0
-            if (e.hp <= 0) {
-              this.world.remove(e.mesh)
-              this.enemies.splice(i, 1)
-              this.combo += 1
-              this.score += 200 + this.combo * 30
-              this.sfx.boom()
-              this.flash = 0.05
-            }
+            consumed = true
+            if (e.hp <= 0) this.destroyEnemy(i)
             break
           }
         }
       } else if (this.invuln <= 0) {
-        if (b.mesh.position.distanceTo(new THREE.Vector3(this.shipX, this.shipY, 0)) < 0.95) {
+        if (b.mesh.position.distanceTo(new THREE.Vector3(this.shipX, this.shipY, 0)) < 1.0) {
           this.damagePlayer()
           this.scene.remove(b.mesh)
-          b.life = 0
+          consumed = true
         }
       }
 
-      if (b.life > 0 && b.mesh.position.z > -100 && b.mesh.position.z < 25) keep.push(b)
-      else this.scene.remove(b.mesh)
+      if (!consumed && b.life > 0 && b.mesh.position.z > -120 && b.mesh.position.z < 25) {
+        keep.push(b)
+      } else if (!consumed) {
+        this.scene.remove(b.mesh)
+      }
     }
     this.bullets = keep
   }
