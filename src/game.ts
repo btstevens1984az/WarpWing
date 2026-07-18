@@ -55,6 +55,7 @@ export class Game {
   private combo = 0
   private phase: Phase = 'title'
   private flash = 0
+  private captureMode = false
 
   private stars!: THREE.Points
 
@@ -106,7 +107,23 @@ export class Game {
       }
     })
 
+    // Used by scripts/capture-gameplay.mjs for README screenshots
+    ;(window as unknown as { warpwing: Game }).warpwing = this
+
     this.renderer.setAnimationLoop(() => this.frame())
+  }
+
+  /** Brief invulnerability + mid-course placement for README screenshots. */
+  prepareCapture() {
+    this.captureMode = true
+    this.invuln = 90
+    this.shields = 3
+    this.flash = 0
+    this.progress = 42
+    this.world.position.z = this.progress
+    this.ship.visible = true
+    this.shipX = 0
+    this.shipY = 0.6
   }
 
   private resize() {
@@ -200,6 +217,7 @@ export class Game {
     this.speedMul = 1
     this.fireCd = 0
     this.flash = 0
+    this.captureMode = false
     this.phase = 'playing'
     this.ship.visible = true
     this.world.position.z = 0
@@ -324,8 +342,15 @@ export class Game {
 
     this.ship.position.set(this.shipX, this.shipY, 0)
     this.ship.rotation.set(this.shipY * 0.05, -this.shipX * 0.04, -this.shipX * 0.08 + this.roll)
-    if (this.invuln > 0) this.ship.visible = Math.floor(this.invuln * 20) % 2 === 0
+    if (this.captureMode) this.ship.visible = true
+    else if (this.invuln > 0) this.ship.visible = Math.floor(this.invuln * 20) % 2 === 0
     else this.ship.visible = true
+
+    // Freeze mission completion during capture runs
+    if (this.captureMode && this.progress > this.missionLength - 40) {
+      this.progress = this.missionLength - 40
+      this.world.position.z = this.progress
+    }
 
     this.camera.position.x = THREE.MathUtils.lerp(this.camera.position.x, this.shipX * 0.4, 0.08)
     this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, this.shipY * 0.35 + 2.15, 0.08)

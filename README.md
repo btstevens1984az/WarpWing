@@ -15,6 +15,28 @@ Open the URL Vite prints (usually `http://localhost:5173`), click **LAUNCH MISSI
 
 ---
 
+## Live gameplay
+
+Real captures from the running WebGL build:
+
+<p align="center">
+  <img src="media/01-title-screen.png" alt="WarpWing title screen" width="900" />
+</p>
+
+<p align="center">
+  <img src="media/02-sortie-start.png" alt="Nova Dart launching into Emberreach corridor" width="900" />
+</p>
+
+<p align="center">
+  <img src="media/03-live-combat.png" alt="Live combat over Emberreach with score rings ahead" width="900" />
+</p>
+
+<p align="center">
+  <img src="media/04-barrel-roll-corridor.png" alt="Banking through the pillar corridor" width="900" />
+</p>
+
+---
+
 ## Important disclaimer (please read)
 
 WarpWing is an **independent student / developer practice project**.
