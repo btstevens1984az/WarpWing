@@ -17,23 +17,41 @@ Open the URL Vite prints (usually `http://localhost:5173`), click **LAUNCH MISSI
 
 ## Live gameplay
 
-Real captures from the running WebGL build:
+Real captures from the running WebGL build — each clip is a **5-second loop** (GIF for the README; MP4 also in [`media/`](./media/)).
+
+### Title
 
 <p align="center">
-  <img src="media/01-title-screen.png" alt="WarpWing title screen" width="900" />
+  <img src="media/01-title-screen.gif" alt="WarpWing title screen" width="720" />
 </p>
 
-<p align="center">
-  <img src="media/02-sortie-start.png" alt="Nova Dart launching into Emberreach corridor" width="900" />
-</p>
+### Sortie start
 
 <p align="center">
-  <img src="media/03-live-combat.png" alt="Live combat over Emberreach with score rings ahead" width="900" />
+  <img src="media/02-sortie-start.gif" alt="Nova Dart launching into Emberreach corridor" width="720" />
 </p>
 
+### Live combat
+
 <p align="center">
-  <img src="media/04-barrel-roll-corridor.png" alt="Banking through the pillar corridor" width="900" />
+  <img src="media/03-live-combat.gif" alt="Live combat over Emberreach with score rings ahead" width="720" />
 </p>
+
+### Barrel roll corridor
+
+<p align="center">
+  <img src="media/04-barrel-roll-corridor.gif" alt="Banking through the pillar corridor" width="720" />
+</p>
+
+MP4 versions (same 5s loops):  
+[title](media/01-title-screen.mp4) · [sortie](media/02-sortie-start.mp4) · [combat](media/03-live-combat.mp4) · [barrel roll](media/04-barrel-roll-corridor.mp4)
+
+Re-capture locally (dev server on :5173 + ffmpeg + Playwright):
+
+```bash
+npm run dev
+npm run capture
+```
 
 ---
 
@@ -86,6 +104,7 @@ Pilot the **Nova Dart** through a low-poly canyon under the skies of **Emberreac
 npm run dev       # local play
 npm run build     # production build
 npm run preview   # preview build
+npm run capture   # refresh media/ 5s GIF+MP4 loops (needs ffmpeg + Playwright)
 ```
 
 ---

@@ -121,10 +121,12 @@ export class Game {
     this.renderer.setAnimationLoop(() => this.frame())
   }
 
-  /** Brief invulnerability + mid-course placement for README screenshots. */
+  /** Brief invulnerability + mid-course placement for README capture loops. */
   prepareCapture() {
+    if (this.phase !== 'playing') this.startMission()
     this.captureMode = true
     this.invuln = 90
+    this.introGrace = 90
     this.shields = this.maxShields
     this.flash = 0
     this.progress = 120
@@ -132,6 +134,10 @@ export class Game {
     this.ship.visible = true
     this.shipX = 0
     this.shipY = 0.6
+    this.hud.boot.classList.add('hidden')
+    this.hud.overlay.classList.add('hidden')
+    this.hud.root.classList.remove('hidden')
+    this.updateHud()
   }
 
   private resize() {
