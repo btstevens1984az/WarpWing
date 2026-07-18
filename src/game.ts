@@ -43,7 +43,9 @@ export class Game {
   private invuln = 0
   private speedMul = 1
   private progress = 0
-  private readonly missionLength = 260
+  /** Longer sortie — ~40s at cruise, more with brake. */
+  private readonly missionLength = 980
+  private readonly maxShields = 5
 
   private bullets: Bullet[] = []
   private enemies: Enemy[] = []
@@ -51,11 +53,12 @@ export class Game {
   private fireCd = 0
 
   private score = 0
-  private shields = 3
+  private shields = 5
   private combo = 0
   private phase: Phase = 'title'
   private flash = 0
   private captureMode = false
+  private introGrace = 0
 
   private stars!: THREE.Points
 
@@ -117,9 +120,9 @@ export class Game {
   prepareCapture() {
     this.captureMode = true
     this.invuln = 90
-    this.shields = 3
+    this.shields = this.maxShields
     this.flash = 0
-    this.progress = 42
+    this.progress = 120
     this.world.position.z = this.progress
     this.ship.visible = true
     this.shipX = 0
@@ -198,13 +201,14 @@ export class Game {
     this.clearCombat()
     this.progress = 0
     this.score = 0
-    this.shields = 3
+    this.shields = this.maxShields
     this.combo = 0
     this.shipX = 0
     this.shipY = 0
     this.roll = 0
     this.rollTimer = 0
-    this.invuln = 0
+    this.invuln = 2.5
+    this.introGrace = 3.0
     this.speedMul = 1
     this.fireCd = 0
     this.flash = 0
@@ -215,7 +219,7 @@ export class Game {
     this.hud.boot.classList.add('hidden')
     this.hud.overlay.classList.add('hidden')
     this.hud.root.classList.remove('hidden')
-    this.hud.hint.textContent = 'Q BRAKE · E BOOST · SHIFT ROLL · SPACE FIRE'
+    this.hud.hint.textContent = 'EASY START — LEARN THE CONTROLS · RINGS FIRST'
     this.seedCourse()
     this.updateHud()
   }
@@ -229,53 +233,129 @@ export class Game {
     this.rings = []
   }
 
+  /** 0 at sortie start → 1 near the finish. */
+  private depthAt(worldZ: number) {
+    return THREE.MathUtils.clamp((-worldZ) / this.missionLength, 0, 1)
+  }
+
+  private stageLabel(depth: number) {
+    if (depth < 0.34) return 'STAGE 1 · EASY'
+    if (depth < 0.68) return 'STAGE 2 · MODERATE'
+    return 'STAGE 3 · HARD'
+  }
+
   private seedCourse() {
-    for (let z = -20; z > -this.missionLength + 25; z -= 14) {
-      if (Math.random() > 0.3) {
+    for (let z = -28; z > -this.missionLength + 40; ) {
+      const depth = this.depthAt(z)
+      const step = depth < 0.34 ? 22 : depth < 0.68 ? 16 : 11
+      z -= step
+
+      const ringChance = depth < 0.34 ? 0.85 : depth < 0.68 ? 0.55 : 0.4
+      if (Math.random() < ringChance) {
         const ring = createRing()
-        ring.position.set((Math.random() - 0.5) * 6, 0.4 + Math.random() * 2.4, z)
+        ring.position.set((Math.random() - 0.5) * (depth < 0.34 ? 4 : 6), 0.6 + Math.random() * 2.0, z)
         this.world.add(ring)
         this.rings.push({ mesh: ring, taken: false })
       }
 
+      // Safe intro corridor — rings only
+      if (depth < 0.14) continue
+
+      if (depth < 0.34) {
+        if (Math.random() < 0.35) {
+          const x = (Math.random() - 0.5) * 5
+          const mesh = createEnemyFighter()
+          mesh.position.set(x, 1.0 + Math.random() * 1.5, z - 3)
+          this.world.add(mesh)
+          this.enemies.push({
+            mesh,
+            kind: 'fighter',
+            hp: 1,
+            t: Math.random() * Math.PI * 2,
+            fireCd: 2.8 + Math.random() * 1.5,
+            baseX: x,
+          })
+        }
+        continue
+      }
+
+      if (depth < 0.68) {
+        const roll = Math.random()
+        if (roll < 0.5) {
+          const x = (Math.random() - 0.5) * 6.5
+          const mesh = createEnemyFighter()
+          mesh.position.set(x, 0.8 + Math.random() * 2.0, z - 3)
+          this.world.add(mesh)
+          this.enemies.push({
+            mesh,
+            kind: 'fighter',
+            hp: 1,
+            t: Math.random() * Math.PI * 2,
+            fireCd: 1.6 + Math.random(),
+            baseX: x,
+          })
+        } else if (roll < 0.72) {
+          const side = Math.random() > 0.5 ? 1 : -1
+          const mesh = createTurret()
+          mesh.position.set(side * (6 + Math.random() * 2), -1.2, z - 2)
+          this.world.add(mesh)
+          this.enemies.push({
+            mesh,
+            kind: 'turret',
+            hp: 2,
+            t: 0,
+            fireCd: 2.0,
+            baseX: mesh.position.x,
+          })
+        }
+        continue
+      }
+
       const roll = Math.random()
       if (roll < 0.55) {
-        const mesh = createEnemyFighter()
-        // Keep fighters in the shootable flight lane
-        const x = (Math.random() - 0.5) * 7
-        mesh.position.set(x, 0.8 + Math.random() * 2.2, z - 4)
-        this.world.add(mesh)
-        this.enemies.push({
-          mesh,
-          kind: 'fighter',
-          hp: 1,
-          t: Math.random() * Math.PI * 2,
-          fireCd: 0.8 + Math.random(),
-          baseX: x,
-        })
-      } else if (roll < 0.85) {
-        const mesh = createTurret()
+        const count = Math.random() < 0.45 ? 2 : 1
+        for (let n = 0; n < count; n++) {
+          const x = (Math.random() - 0.5) * 7
+          const mesh = createEnemyFighter()
+          mesh.position.set(x, 0.7 + Math.random() * 2.4, z - 3 - n * 2)
+          this.world.add(mesh)
+          this.enemies.push({
+            mesh,
+            kind: 'fighter',
+            hp: 1 + (Math.random() < 0.35 ? 1 : 0),
+            t: Math.random() * Math.PI * 2,
+            fireCd: 0.9 + Math.random() * 0.6,
+            baseX: x,
+          })
+        }
+      } else if (roll < 0.9) {
         const side = Math.random() > 0.5 ? 1 : -1
-        // Pull turrets inward so lasers can reach them
-        mesh.position.set(side * (5.5 + Math.random() * 2), -1.2, z - 2)
+        const mesh = createTurret()
+        mesh.position.set(side * (5.2 + Math.random() * 2.5), -1.15, z - 2)
         this.world.add(mesh)
         this.enemies.push({
           mesh,
           kind: 'turret',
           hp: 2,
           t: 0,
-          fireCd: 1.2,
+          fireCd: 1.1,
           baseX: mesh.position.x,
         })
       }
     }
 
-    for (const x of [-3.5, 0, 3.5]) {
+    for (const x of [-4, -1.5, 1.5, 4]) {
       const mesh = createEnemyFighter()
-      mesh.scale.setScalar(1.35)
-      mesh.position.set(x, 1.5, -this.missionLength + 35)
+      mesh.scale.setScalar(1.25)
+      mesh.position.set(x, 1.2 + Math.abs(x) * 0.1, -this.missionLength + 48)
       this.world.add(mesh)
-      this.enemies.push({ mesh, kind: 'fighter', hp: 3, t: x, fireCd: 0.6, baseX: x })
+      this.enemies.push({ mesh, kind: 'fighter', hp: 2, t: x, fireCd: 0.7, baseX: x })
+    }
+    for (const side of [-1, 1] as const) {
+      const mesh = createTurret()
+      mesh.position.set(side * 6.5, -1.1, -this.missionLength + 55)
+      this.world.add(mesh)
+      this.enemies.push({ mesh, kind: 'turret', hp: 3, t: 0, fireCd: 0.9, baseX: mesh.position.x })
     }
   }
 
@@ -326,9 +406,12 @@ export class Game {
     }
     if (this.invuln > 0) this.invuln -= dt
 
-    this.speedMul = boost ? 1.6 : brake ? 0.5 : 1
-    this.progress += 26 * this.speedMul * dt
+    this.speedMul = boost ? 1.45 : brake ? 0.55 : 1
+    // Slower cruise so the longer mission has time to breathe
+    this.progress += 22 * this.speedMul * dt
     this.world.position.z = this.progress
+
+    if (this.introGrace > 0) this.introGrace = Math.max(0, this.introGrace - dt)
 
     this.ship.position.set(this.shipX, this.shipY, 0)
     this.ship.rotation.set(this.shipY * 0.05, -this.shipX * 0.04, -this.shipX * 0.08 + this.roll)
@@ -396,7 +479,9 @@ export class Game {
     this.scene.add(mesh)
     const toPlayer = new THREE.Vector3(this.shipX - origin.x, this.shipY - origin.y, 0 - origin.z)
     if (toPlayer.lengthSq() < 0.001) toPlayer.set(0, 0, 1)
-    toPlayer.normalize().multiplyScalar(34)
+    const depth = this.progress / this.missionLength
+    const shotSpeed = depth < 0.34 ? 20 : depth < 0.68 ? 28 : 36
+    toPlayer.normalize().multiplyScalar(shotSpeed)
     this.bullets.push({ mesh, vel: toPlayer, life: 2.4, fromPlayer: false })
   }
 
@@ -457,14 +542,24 @@ export class Game {
       }
 
       const scenePos = this.worldToScene(e.mesh.position)
+      const depth = this.depthAt(e.mesh.position.z)
       e.fireCd -= dt
-      if (e.fireCd <= 0 && scenePos.z < 18 && scenePos.z > -45) {
+
+      // Enemies hold fire during intro grace / very early easy stretch
+      const canShoot = this.introGrace <= 0 && depth >= 0.18
+      if (canShoot && e.fireCd <= 0 && scenePos.z < 16 && scenePos.z > -42) {
         this.fireEnemy(e)
-        e.fireCd = e.kind === 'turret' ? 1.55 : 1.9
+        const reload =
+          depth < 0.34 ? (e.kind === 'turret' ? 2.4 : 2.6) :
+          depth < 0.68 ? (e.kind === 'turret' ? 1.7 : 1.9) :
+          (e.kind === 'turret' ? 1.15 : 1.25)
+        e.fireCd = reload
       }
 
       const dist = scenePos.distanceTo(new THREE.Vector3(this.shipX, this.shipY, 0))
-      if (dist < 1.35) {
+      // More forgiving contact early — hostiles brush past instead of melting you
+      const contactR = depth < 0.34 ? 1.05 : 1.3
+      if (dist < contactR && this.introGrace <= 0) {
         this.damagePlayer()
         this.explodeAt(scenePos, 0xff5566)
         this.world.remove(e.mesh)
@@ -550,10 +645,10 @@ export class Game {
   }
 
   private damagePlayer() {
-    if (this.invuln > 0) return
+    if (this.invuln > 0 || this.introGrace > 0) return
     this.shields -= 1
     this.combo = 0
-    this.invuln = 1.0
+    this.invuln = 1.85
     this.flash = 0.12
     this.sfx.hurt()
     if (this.shields <= 0) this.endMission(false)
@@ -576,9 +671,23 @@ export class Game {
   }
 
   private updateHud() {
+    const depth = this.progress / this.missionLength
+    const pct = Math.min(100, Math.round(depth * 100))
     this.hud.score.textContent = String(this.score)
-    this.hud.shieldBars.style.transform = `scaleX(${Math.max(0, this.shields / 3)})`
-    this.hud.speed.textContent = `SPEED ${Math.round(this.speedMul * 100)}%`
+    this.hud.shieldBars.style.transform = `scaleX(${Math.max(0, this.shields / this.maxShields)})`
+    this.hud.speed.textContent = `SPEED ${Math.round(this.speedMul * 100)}% · ${pct}%`
     this.hud.combo.textContent = this.combo > 1 ? `COMBO x${this.combo}` : ''
+
+    const mission = document.getElementById('mission')
+    if (mission) {
+      if (this.introGrace > 0) mission.textContent = 'WARM-UP · FLY THROUGH RINGS'
+      else mission.textContent = this.stageLabel(depth)
+    }
+
+    if (this.introGrace <= 0) {
+      if (depth < 0.34) this.hud.hint.textContent = 'EASY — PICK OFF SLOW FIGHTERS · GRAB RINGS'
+      else if (depth < 0.68) this.hud.hint.textContent = 'MODERATE — TURRETS ONLINE · STAY MOBILE'
+      else this.hud.hint.textContent = 'HARD — FINAL CORRIDOR · ROLL THROUGH FIRE'
+    }
   }
 }
