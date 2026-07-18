@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WarpWing</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='8' fill='%23080c18'/><path d='M32 10 L50 48 L32 40 L14 48 Z' fill='%23ffb347'/></svg>" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="boot">
+      <div class="boot-card">
+        <p class="eyebrow">ORIGINAL STUDENT / DEVELOPER PROJECT</p>
+        <h1>WARP<span>WING</span></h1>
+        <p class="tag">An on-rails space sortie built for fun — inspired by classic 90s console shooters, not a copy of any commercial game.</p>
+        <ul class="controls">
+          <li><kbd>←→↑↓</kbd> / <kbd>WASD</kbd> Steer</li>
+          <li><kbd>Space</kbd> / <kbd>Z</kbd> Fire lasers</li>
+          <li><kbd>Shift</kbd> Barrel roll (brief invulnerability)</li>
+          <li><kbd>Q</kbd> Brake · <kbd>E</kbd> Boost</li>
+          <li><kbd>Enter</kbd> Start / Retry</li>
+        </ul>
+        <button id="startBtn" type="button">LAUNCH MISSION 1</button>
+        <p class="legal">Independent project by a developer learning game craft. Not affiliated with, endorsed by, or connected to Nintendo or any Star Fox / Starwing rights holders. All names, ships, and worlds here are original.</p>
+      </div>
+    </div>
+
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-block">
+          <span class="label">SCORE</span>
+          <span id="score">0</span>
+        </div>
+        <div class="hud-block center">
+          <span class="label">EMBERS REACH · SORTIE 01</span>
+          <span id="mission">CLEAR THE CORRIDOR</span>
+        </div>
+        <div class="hud-block right">
+          <span class="label">SHIELD</span>
+          <div class="bars"><i id="shieldBars"></i></div>
+        </div>
+      </div>
+      <div class="crosshair" aria-hidden="true"></div>
+      <div class="hud-bottom">
+        <span id="speedReadout">SPEED 100%</span>
+        <span id="combo"></span>
+        <span id="hint">ROLL THROUGH LASERS · HIT THE RINGS</span>
+      </div>
+    </div>
+
+    <div id="overlay" class="hidden">
+      <div class="overlay-card">
+        <h2 id="overlayTitle">MISSION COMPLETE</h2>
+        <p id="overlayBody"></p>
+        <button id="retryBtn" type="button">FLY AGAIN</button>
+      </div>
+    </div>
+
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
