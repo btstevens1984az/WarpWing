@@ -43,9 +43,12 @@ export class Game {
   private invuln = 0
   private speedMul = 1
   private progress = 0
-  /** Longer sortie — ~40s at cruise, more with brake. */
-  private readonly missionLength = 980
-  private readonly maxShields = 5
+  /** Longer sortie — ~90–100s at cruise. */
+  private readonly cruiseSpeed = 20
+  private readonly missionLength = 2000
+  /** Ground turrets unlock after ~60s of cruise progress. */
+  private readonly turretUnlockAt = 20 * 60
+  private readonly maxShields = 6
 
   private bullets: Bullet[] = []
   private enemies: Enemy[] = []
@@ -53,12 +56,14 @@ export class Game {
   private fireCd = 0
 
   private score = 0
-  private shields = 5
+  private shields = 6
   private combo = 0
   private phase: Phase = 'title'
   private flash = 0
   private captureMode = false
   private introGrace = 0
+  private playTime = 0
+  private turretsAnnounced = false
 
   private stars!: THREE.Points
 
@@ -208,7 +213,9 @@ export class Game {
     this.roll = 0
     this.rollTimer = 0
     this.invuln = 2.5
-    this.introGrace = 3.0
+    this.introGrace = 4.0
+    this.playTime = 0
+    this.turretsAnnounced = false
     this.speedMul = 1
     this.fireCd = 0
     this.flash = 0
@@ -239,123 +246,112 @@ export class Game {
   }
 
   private stageLabel(depth: number) {
-    if (depth < 0.34) return 'STAGE 1 · EASY'
-    if (depth < 0.68) return 'STAGE 2 · MODERATE'
-    return 'STAGE 3 · HARD'
+    if (this.progress < this.turretUnlockAt * 0.55) return 'STAGE 1 · EASY'
+    if (this.progress < this.turretUnlockAt) return 'STAGE 2 · MODERATE'
+    return 'STAGE 3 · HARD · GROUND GUNS'
   }
 
   private seedCourse() {
-    for (let z = -28; z > -this.missionLength + 40; ) {
+    for (let z = -30; z > -this.missionLength + 50; ) {
       const depth = this.depthAt(z)
-      const step = depth < 0.34 ? 22 : depth < 0.68 ? 16 : 11
+      const along = -z
+      const step = along < this.turretUnlockAt * 0.5 ? 24 : along < this.turretUnlockAt ? 18 : 13
       z -= step
 
-      const ringChance = depth < 0.34 ? 0.85 : depth < 0.68 ? 0.55 : 0.4
+      const ringChance = along < this.turretUnlockAt * 0.5 ? 0.9 : along < this.turretUnlockAt ? 0.6 : 0.45
       if (Math.random() < ringChance) {
         const ring = createRing()
-        ring.position.set((Math.random() - 0.5) * (depth < 0.34 ? 4 : 6), 0.6 + Math.random() * 2.0, z)
+        ring.position.set((Math.random() - 0.5) * (along < this.turretUnlockAt ? 4.5 : 6), 0.7 + Math.random() * 1.8, z)
         this.world.add(ring)
         this.rings.push({ mesh: ring, taken: false })
       }
 
-      // Safe intro corridor — rings only
-      if (depth < 0.14) continue
+      // Opening stretch — rings only
+      if (along < 220) continue
 
-      if (depth < 0.34) {
-        if (Math.random() < 0.35) {
-          const x = (Math.random() - 0.5) * 5
+      // Easy air targets only (no ground guns)
+      if (along < this.turretUnlockAt * 0.55) {
+        if (Math.random() < 0.22) {
+          const x = (Math.random() - 0.5) * 4.5
           const mesh = createEnemyFighter()
-          mesh.position.set(x, 1.0 + Math.random() * 1.5, z - 3)
+          mesh.position.set(x, 1.1 + Math.random() * 1.4, z - 3)
           this.world.add(mesh)
           this.enemies.push({
             mesh,
             kind: 'fighter',
             hp: 1,
             t: Math.random() * Math.PI * 2,
-            fireCd: 2.8 + Math.random() * 1.5,
+            fireCd: 3.2 + Math.random() * 1.5,
             baseX: x,
           })
         }
         continue
       }
 
-      if (depth < 0.68) {
-        const roll = Math.random()
-        if (roll < 0.5) {
-          const x = (Math.random() - 0.5) * 6.5
+      // Moderate — more fighters still, still no tanks
+      if (along < this.turretUnlockAt) {
+        if (Math.random() < 0.4) {
+          const x = (Math.random() - 0.5) * 6
           const mesh = createEnemyFighter()
-          mesh.position.set(x, 0.8 + Math.random() * 2.0, z - 3)
+          mesh.position.set(x, 0.9 + Math.random() * 1.8, z - 3)
           this.world.add(mesh)
           this.enemies.push({
             mesh,
             kind: 'fighter',
             hp: 1,
             t: Math.random() * Math.PI * 2,
-            fireCd: 1.6 + Math.random(),
+            fireCd: 2.0 + Math.random(),
             baseX: x,
-          })
-        } else if (roll < 0.72) {
-          const side = Math.random() > 0.5 ? 1 : -1
-          const mesh = createTurret()
-          mesh.position.set(side * (6 + Math.random() * 2), -1.2, z - 2)
-          this.world.add(mesh)
-          this.enemies.push({
-            mesh,
-            kind: 'turret',
-            hp: 2,
-            t: 0,
-            fireCd: 2.0,
-            baseX: mesh.position.x,
           })
         }
         continue
       }
 
+      // Hard (after ~1 minute) — fighters + ground turrets
       const roll = Math.random()
-      if (roll < 0.55) {
-        const count = Math.random() < 0.45 ? 2 : 1
-        for (let n = 0; n < count; n++) {
-          const x = (Math.random() - 0.5) * 7
-          const mesh = createEnemyFighter()
-          mesh.position.set(x, 0.7 + Math.random() * 2.4, z - 3 - n * 2)
-          this.world.add(mesh)
-          this.enemies.push({
-            mesh,
-            kind: 'fighter',
-            hp: 1 + (Math.random() < 0.35 ? 1 : 0),
-            t: Math.random() * Math.PI * 2,
-            fireCd: 0.9 + Math.random() * 0.6,
-            baseX: x,
-          })
-        }
-      } else if (roll < 0.9) {
+      if (roll < 0.5) {
+        const x = (Math.random() - 0.5) * 6.5
+        const mesh = createEnemyFighter()
+        mesh.position.set(x, 0.8 + Math.random() * 2.2, z - 3)
+        this.world.add(mesh)
+        this.enemies.push({
+          mesh,
+          kind: 'fighter',
+          hp: 1,
+          t: Math.random() * Math.PI * 2,
+          fireCd: 1.2 + Math.random() * 0.7,
+          baseX: x,
+        })
+      } else if (roll < 0.78) {
         const side = Math.random() > 0.5 ? 1 : -1
         const mesh = createTurret()
-        mesh.position.set(side * (5.2 + Math.random() * 2.5), -1.15, z - 2)
+        mesh.position.set(side * (5.5 + Math.random() * 2.2), -1.15, z - 2)
         this.world.add(mesh)
         this.enemies.push({
           mesh,
           kind: 'turret',
           hp: 2,
           t: 0,
-          fireCd: 1.1,
+          fireCd: 1.4,
           baseX: mesh.position.x,
         })
       }
     }
 
-    for (const x of [-4, -1.5, 1.5, 4]) {
+    // Finale air gate (fighters only up top)
+    for (const x of [-3.5, 0, 3.5]) {
       const mesh = createEnemyFighter()
-      mesh.scale.setScalar(1.25)
-      mesh.position.set(x, 1.2 + Math.abs(x) * 0.1, -this.missionLength + 48)
+      mesh.scale.setScalar(1.2)
+      mesh.position.set(x, 1.3, -this.missionLength + 60)
       this.world.add(mesh)
-      this.enemies.push({ mesh, kind: 'fighter', hp: 2, t: x, fireCd: 0.7, baseX: x })
+      this.enemies.push({ mesh, kind: 'fighter', hp: 2, t: x, fireCd: 0.85, baseX: x })
     }
+    // Ground guns only in the late finale (well past the 1-minute mark)
     for (const side of [-1, 1] as const) {
       const mesh = createTurret()
-      mesh.position.set(side * 6.5, -1.1, -this.missionLength + 55)
+      mesh.position.set(side * 6.2, -1.1, -this.missionLength + 70)
       this.world.add(mesh)
-      this.enemies.push({ mesh, kind: 'turret', hp: 3, t: 0, fireCd: 0.9, baseX: mesh.position.x })
+      this.enemies.push({ mesh, kind: 'turret', hp: 2, t: 0, fireCd: 1.1, baseX: mesh.position.x })
     }
   }
 
@@ -406,12 +402,17 @@ export class Game {
     }
     if (this.invuln > 0) this.invuln -= dt
 
-    this.speedMul = boost ? 1.45 : brake ? 0.55 : 1
-    // Slower cruise so the longer mission has time to breathe
-    this.progress += 22 * this.speedMul * dt
+    this.speedMul = boost ? 1.4 : brake ? 0.55 : 1
+    this.progress += this.cruiseSpeed * this.speedMul * dt
     this.world.position.z = this.progress
+    this.playTime += dt
 
     if (this.introGrace > 0) this.introGrace = Math.max(0, this.introGrace - dt)
+
+    if (!this.turretsAnnounced && this.progress >= this.turretUnlockAt - 40) {
+      this.turretsAnnounced = true
+      this.hud.hint.textContent = 'WARNING — GROUND GUNS AHEAD'
+    }
 
     this.ship.position.set(this.shipX, this.shipY, 0)
     this.ship.rotation.set(this.shipY * 0.05, -this.shipX * 0.04, -this.shipX * 0.08 + this.roll)
@@ -558,7 +559,7 @@ export class Game {
 
       const dist = scenePos.distanceTo(new THREE.Vector3(this.shipX, this.shipY, 0))
       // More forgiving contact early — hostiles brush past instead of melting you
-      const contactR = depth < 0.34 ? 1.05 : 1.3
+      const contactR = depth < 0.4 ? 0.95 : 1.25
       if (dist < contactR && this.introGrace <= 0) {
         this.damagePlayer()
         this.explodeAt(scenePos, 0xff5566)
@@ -648,7 +649,7 @@ export class Game {
     if (this.invuln > 0 || this.introGrace > 0) return
     this.shields -= 1
     this.combo = 0
-    this.invuln = 1.85
+    this.invuln = 2.2
     this.flash = 0.12
     this.sfx.hurt()
     if (this.shields <= 0) this.endMission(false)
@@ -673,9 +674,10 @@ export class Game {
   private updateHud() {
     const depth = this.progress / this.missionLength
     const pct = Math.min(100, Math.round(depth * 100))
+    const secs = Math.floor(this.playTime)
     this.hud.score.textContent = String(this.score)
     this.hud.shieldBars.style.transform = `scaleX(${Math.max(0, this.shields / this.maxShields)})`
-    this.hud.speed.textContent = `SPEED ${Math.round(this.speedMul * 100)}% · ${pct}%`
+    this.hud.speed.textContent = `SPEED ${Math.round(this.speedMul * 100)}% · ${pct}% · ${secs}s`
     this.hud.combo.textContent = this.combo > 1 ? `COMBO x${this.combo}` : ''
 
     const mission = document.getElementById('mission')
@@ -684,10 +686,14 @@ export class Game {
       else mission.textContent = this.stageLabel(depth)
     }
 
-    if (this.introGrace <= 0) {
-      if (depth < 0.34) this.hud.hint.textContent = 'EASY — PICK OFF SLOW FIGHTERS · GRAB RINGS'
-      else if (depth < 0.68) this.hud.hint.textContent = 'MODERATE — TURRETS ONLINE · STAY MOBILE'
-      else this.hud.hint.textContent = 'HARD — FINAL CORRIDOR · ROLL THROUGH FIRE'
+    if (this.introGrace <= 0 && this.progress < this.turretUnlockAt - 40) {
+      if (this.progress < this.turretUnlockAt * 0.55) {
+        this.hud.hint.textContent = 'EASY — AIR TARGETS ONLY · GRAB RINGS'
+      } else {
+        this.hud.hint.textContent = 'MODERATE — MORE FIGHTERS · STILL NO GROUND GUNS'
+      }
+    } else if (this.progress >= this.turretUnlockAt) {
+      this.hud.hint.textContent = 'HARD — GROUND GUNS ACTIVE · STAY HIGH & ROLL'
     }
   }
 }
